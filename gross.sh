@@ -3651,6 +3651,7 @@ change_test()
     ufw allow 443
     ufw allow 80
     ufw enable
+    reboot
 }
 reinstall_cloudreve()
 {
