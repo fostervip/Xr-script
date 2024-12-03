@@ -3230,7 +3230,7 @@ install_update_xray_tls_web()
     sleep 2s
     systemctl stop cloudreve
     systemctl restart xray nginx
-    #type change_men &>/dev/null && change_men
+    type change_men &>/dev/null && change_men
     if [ $update -eq 0 ]; then
         [ "${pretend_list[0]}" == "1" ] && [ $temp_remove_cloudreve -eq 1 ] && remove_cloudreve
         init_web 0
