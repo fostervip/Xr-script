@@ -2834,100 +2834,94 @@ let_init_nextcloud()
     echo
 }
 
-print_test()
+print_vmess_share_links()
 {
-    #!/usr/bin/env bash
-# 文件名建议：generate-vmess.sh
-# 用途：根据 vmess://${xid_3}@${i}:443?type=ws&security=tls&path=%2F${path#/}%3Fed=2048
-#       格式生成完整的 base64 vmess 链接
-#
-# 用法示例：
-#   ./generate-vmess.sh "b8f9b228-d2e8-44fb-8b8d-2e929c5be1b6" "108.162.198.49" "b14eefb8f1"
-#   或
-#   xid_3="你的uuid" i="你的ip" path="你的路径" ./generate-vmess.sh
+    # ... 前面的 IP 處理、VLESS 部分保持不變 ...
 
-set -u
+    # ======================
+    #  改成標準 vmess://Base64(JSON) 格式
+    # ======================
 
-# --------------------- 可自行修改的固定值 ---------------------
-readonly REMARK="${linux_hostname} (WS-TLS)"           # 节点名称（ps）
-readonly HOST="www.pylearn.tk"       # ws host / SNI 伪装域名
-readonly ED="2048"                   # ed= 参数值
-readonly PORT="443"
-# --------------------------------------------------------------
+    if [ $protocol_2 -eq 2 ]; then
+        green "=========== VMess-gRPC-TLS (若開CDN則走CDN，否則直連) ==========="
+        for i in "${!domain_list[@]}"
+        do
+            local address="${domain_list[$i]}"
+            local remark="VMess-gRPC-${address}"
 
-# 检查参数（支持位置参数 或 环境变量）
-if [[ $# -eq 3 ]]; then
-    xid_3="$1"
-    i="$2"
-    path="$3"
-elif [[ -n "${xid_3:-}" && -n "${i:-}" && -n "${path:-}" ]]; then
-    :  # 使用环境变量，已设置
-else
-    cat <<EOF
-用法:
-  1. 位置参数：
-     $0 <xid_3(UUID)> <i(服务器地址)> <path(路径部分)>
-     示例：
-     $0 b8f9b228-d2e8-44fb-8b8d-2e929c5be1b6 108.162.198.49 b14eefb8f1
+            # 組裝 JSON（使用 jq 如果有安裝，或純 bash 拼接）
+            # 這裡用簡單的 printf + base64 方式（bash 內建）
+            local json
+            json=$(printf '{
+                "v": "2",
+                "ps": "%s",
+                "add": "%s",
+                "port": "443",
+                "id": "%s",
+                "aid": "0",
+                "scy": "auto",
+                "net": "grpc",
+                "type": "none",
+                "host": "",
+                "path": "",
+                "tls": "tls",
+                "sni": "%s",
+                "serviceName": "%s"
+            }' \
+            "$remark" \
+            "$address" \
+            "$xid_2" \
+            "$address" \
+            "$serviceName")
 
-  2. 环境变量方式：
-     export xid_3=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-     export i=你的服务器IP或域名
-     export path=你的路径部分
-     $0
-EOF
-    exit 1
-fi
+            local base64_json
+            base64_json=$(printf '%s' "$json" | base64 -w 0 | tr -d '\n' | sed 's/=//g; s+/+ -_ ; s+_+ -/ ; s+-+ -_ g')  # URL-safe base64
 
-# 清理 path：去掉开头的 / （如果有）
-clean_path="${path#/}"
+            tyblue "vmess://${base64_json}"
+        done
+    fi
 
-# 完整 path（符合原始格式的解码后样子）
-full_path="/${clean_path}?ed=${ED}"
+    if [ $protocol_3 -eq 2 ]; then
+        green "=========== VMess-WebSocket-TLS (若開CDN則走CDN，否則直連) ==========="
+        for i in "${!domain_list[@]}"
+        do
+            local address="${domain_list[$i]}"
+            local remark="VMess-WS-${HOSTNAME:-$address}"
 
-# JSON 配置（与你提供的例子字段一致）
-json=$(cat <<EOF
-{
-  "v": "2",
-  "ps": "${REMARK}",
-  "add": "${i}",
-  "port": "${PORT}",
-  "id": "${xid_3}",
-  "aid": "0",
-  "scy": "auto",
-  "net": "ws",
-  "type": "none",
-  "host": "${HOST}",
-  "path": "${full_path}",
-  "tls": "tls",
-  "sni": "",
-  "alpn": ""
-}
-EOF
-)
+            local json
+            json=$(printf '{
+                "v": "2",
+                "ps": "%s",
+                "add": "%s",
+                "port": "443",
+                "id": "%s",
+                "aid": "0",
+                "scy": "auto",
+                "net": "ws",
+                "type": "none",
+                "host": "%s",
+                "path": "\%s",
+                "tls": "tls",
+                "sni": "%s",
+            }' \
+            "$remark" \
+            "$address" \
+            "$xid_3" \
+            "$address" \
+            "/${path#/}?ed=2048" \
+            "$address")
 
-# 转成紧凑 JSON（优先用 jq，没有 jq 则用简易方法）
-if command -v jq >/dev/null 2>&1; then
-    compact_json=$(echo "$json" | jq -c .)
-else
-    # 没有 jq 时的 fallback（去除换行、多余空格）
-    compact_json=$(echo "$json" | tr -d '\n\r\t ' | sed 's/ *: */:/g; s/ *, */,/g; s/ *{ */{/g; s/ *} */}/g')
-fi
+            local base64_json
+            base64_json=$(printf '%s' "$json" | base64 -w 0 | tr -d '\n')
 
-# Base64 URL-safe 编码 + 去掉末尾 =
-base64_str=$(echo -n "$compact_json" | base64 -w 0 | tr '+/' '-_' | sed 's/=*$//')
+            # 做 URL-safe base64（部分客戶端較嚴格）
+            base64_json=$(echo "$base64_json" | tr '/+' '_-' | sed 's/=//g')
 
-# 输出最终链接
-echo "vmess://${base64_str}"
+            tyblue "vmess://${base64_json}"
+        done
+    fi
 
-# （可选）同时显示生成的备注和关键信息，便于检查
-echo ""
-echo "生成信息："
-echo "  备注(ps)  : ${REMARK}"
-echo "  服务器    : ${i}:${PORT}"
-echo "  UUID      : ${xid_3}"
-echo "  路径      : ${full_path}"
-echo "  Host/SNI  : ${HOST}"
+    # 如果你也想把 protocol_3 的 VLESS 也改成類似風格（雖然 VLESS 通常不用 base64），可參考上面自己擴充
 }
 
 
@@ -2977,14 +2971,13 @@ print_share_link()
         green  "=========== VMess-gRPC-TLS \\033[35m(若域名开启了CDN解析则会连接CDN，否则将直连)\\033[32m ==========="
         for i in "${domain_list[@]}"
         do
-            tyblue "vmess://${xid_2}@${i}:443?type=grpc&security=tls&serviceName=${serviceName}&mode=multi&alpn=h2,http%2F1.1"
+            print_vmess_share_links
         done
     fi
     if [ $protocol_3 -eq 1 ]; then
         green  "=========== VLESS-WebSocket-TLS \\033[35m(若域名开启了CDN解析则会连接CDN，否则将直连)\\033[32m ==========="
         for i in "${domain_list[@]}"
         do
-            tyblue "vless://${xid_3}@${i}:443?type=ws&security=tls&path=%2F${path#/}%3Fed=2048"
             tyblue "vless://${xid_3}@108.162.198.49:443?type=ws&security=tls&host=${i}&path=%2F${path#/}%3Fed=2048#${linux_hostname}"
 
         done
@@ -2992,8 +2985,7 @@ print_share_link()
         green  "=========== VMess-WebSocket-TLS \\033[35m(若域名开启了CDN解析则会连接CDN，否则将直连)\\033[32m ==========="
         for i in "${domain_list[@]}"
         do
-            print_test
-            tyblue "vmess://${xid_3}@${i}:443?type=ws&security=tls&path=%2F${path#/}%3Fed=2048"
+            print_vmess_share_links
         done
     fi
 }
@@ -3144,7 +3136,7 @@ print_config_info()
     fi
     echo
     yellow "注：部分选项可能分享链接无法涉及，如果不怕麻烦，建议手动填写"
-    ask_if "是否生成分享链接？(y/n)" && print_share_link
+    print_share_link
     echo
     yellow " 关于fingerprint与alpn，详见：https://github.com/kirin10000/Xray-script#关于tls握手tls指纹和alpn"
     echo
