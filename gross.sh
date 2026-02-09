@@ -2888,11 +2888,13 @@ print_share_link()
         for i in "${domain_list[@]}"
         do
             tyblue "vless://${xid_3}@${i}:443?type=ws&security=tls&path=%2F${path#/}%3Fed=2048"
+            tyblue "vless://${xid_3}@${i}:443?type=ws&security=tls&host=${i}&path=%2F${path#/}%3Fed=2048#${HOSTNAME}"
         done
     elif [ $protocol_3 -eq 2 ]; then
         green  "=========== VMess-WebSocket-TLS \\033[35m(若域名开启了CDN解析则会连接CDN，否则将直连)\\033[32m ==========="
         for i in "${domain_list[@]}"
         do
+            tyblue "vmess://${xid_3}@${i}:443?type=ws&security=tls&host=${i}&path=%2F${path#/}%3Fed=2048#${HOSTNAME}"
             tyblue "vmess://${xid_3}@${i}:443?type=ws&security=tls&path=%2F${path#/}%3Fed=2048"
         done
     fi
