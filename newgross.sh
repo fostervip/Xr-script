@@ -3706,13 +3706,31 @@ change_pretend()
     init_web "$change"
     green "修改完成！"
 }
-change_test()
+update_system()
 {
+    # 更新软件包列表并升级系统（自动同意）
     apt update -y && apt upgrade -y
-    ufw allow 22
+
+    # 检查 ufw 是否已安装，若未安装则自动安装
+    if ! command -v ufw &> /dev/null; then
+        echo "UFW 未安装，正在自动安装..."
+        apt install -y ufw
+    fi
+
+    # 自动获取当前 SSH 端口（若配置文件中有自定义端口则读取，否则默认为 22）
+    SSH_PORT=$(grep -E '^\s*Port\s+[0-9]+' /etc/ssh/sshd_config 2>/dev/null | awk '{print $2}')
+    SSH_PORT=${SSH_PORT:-22}
+    echo "检测到当前 SSH 端口为: $SSH_PORT"
+
+    # 放行对应端口
+    ufw allow "$SSH_PORT"
     ufw allow 443
     ufw allow 80
-    ufw enable
+    
+    # 启用 UFW 防火墙（自动同意并防止 SSH 断开）
+    ufw --force enable
+
+    # 重启系统
     reboot
 }
 reinstall_cloudreve()
@@ -4080,7 +4098,7 @@ start_menu()
     tyblue "  26. 尝试修复退格键无法使用的问题"
     purple "         部分ssh工具(如Xshell)可能有这类问题"
     tyblue "  27. 修改dns"
-    tyblue "  28. test"
+    tyblue "  28. 更新系统（Ubuntu专用）"
     yellow "  0. 退出脚本"
     echo
     echo
@@ -4218,7 +4236,7 @@ start_menu()
     elif [ $choice -eq 27 ]; then
         change_dns
     elif [ $choice -eq 28 ]; then
-        change_test
+        update_system
     fi
 }
 
