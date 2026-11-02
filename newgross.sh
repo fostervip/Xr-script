@@ -588,14 +588,21 @@ remove_xray()
     is_installed=0
 }
 remove_nginx()
-{
-    systemctl stop nginx
-    systemctl disable nginx
-    rm -rf $nginx_service
-    systemctl daemon-reload
-    rm -rf ${nginx_prefix}
-    nginx_is_installed=0
-    is_installed=0
+{   # 卸载并删除 nginx 前先询问
+    read -p "确定要卸载并删除nginx吗？重新编译要好久哦！(y/N): " confirm
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        systemctl stop nginx
+        systemctl disable nginx
+        rm -rf $nginx_service
+        systemctl daemon-reload
+        rm -rf ${nginx_prefix}
+        nginx_is_installed=0
+        is_installed=0
+    else
+        yellow "已取消卸载nginx操作"
+        
+    fi
+    
 }
 remove_php()
 {
